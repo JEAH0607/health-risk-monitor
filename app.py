@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request
 import joblib
 import numpy as np
 import pandas as pd
 import lime
 import lime.lime_tabular
 import os
+import traceback
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 
@@ -14,6 +15,9 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, 'model.pkl')
 COLUMNS_PATH = os.path.join(BASE_DIR, 'model_columns.pkl')
+
+# Feature names in correct order
+FEATURE_NAMES = ['Age', 'Glucose', 'SystolicBP', 'BMI', 'ActivityLevel']
 
 def generate_and_train_model():
     """Generate synthetic data and train model if not exists"""
@@ -41,24 +45,28 @@ def generate_and_train_model():
         'BMI': bmi, 'ActivityLevel': activity, 'Risk': target
     })
     
-    X = df.drop('Risk', axis=1)
+    X = df[FEATURE_NAMES]
     y = df['Risk']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
+    trained_model = RandomForestClassifier(n_estimators=100, random_state=42)
+    trained_model.fit(X_train, y_train)
     
-    joblib.dump(model, MODEL_PATH)
-    joblib.dump(X.columns.tolist(), COLUMNS_PATH)
+    joblib.dump(trained_model, MODEL_PATH)
+    joblib.dump(FEATURE_NAMES, COLUMNS_PATH)
     print(f"Model saved to {MODEL_PATH}")
-    return model, X.columns.tolist()
+    return trained_model
 
 # Load or train model
-if os.path.exists(MODEL_PATH) and os.path.exists(COLUMNS_PATH):
-    model = joblib.load(MODEL_PATH)
-    model_columns = joblib.load(COLUMNS_PATH)
-else:
-    model, model_columns = generate_and_train_model()
+try:
+    if os.path.exists(MODEL_PATH) and os.path.exists(COLUMNS_PATH):
+        model = joblib.load(MODEL_PATH)
+        print("Model loaded successfully")
+    else:
+        model = generate_and_train_model()
+except Exception as e:
+    print(f"Error loading model: {e}")
+    model = generate_and_train_model()
 
 @app.route('/')
 def home():
@@ -68,47 +76,42 @@ def home():
 def predict():
     try:
         # Extract features from form
-        data = {
-            'Age': float(request.form['age']),
-            'Glucose': float(request.form['glucose']),
-            'SystolicBP': float(request.form['bp']),
-            'BMI': float(request.form['bmi']),
-            'ActivityLevel': int(request.form['activity'])
-        }
+        age = float(request.form.get('age', 0))
+        glucose = float(request.form.get('glucose', 0))
+        bp = float(request.form.get('bp', 0))
+        bmi = float(request.form.get('bmi', 0))
+        activity = int(request.form.get('activity', 0))
         
-        # Create DataFrame for prediction to match training format
-        query_df = pd.DataFrame([data])
-        
-        # Reorder columns to match training
-        query_df = query_df[model_columns]
+        # Create feature array in correct order
+        features = np.array([[age, glucose, bp, bmi, activity]])
         
         # Predict Risk
-        risk_prob = model.predict_proba(query_df)[0][1] # Probability of Class 1 (High Risk)
-        risk_class = "High Risk" if risk_prob > 0.65 else "Low Risk"
+        risk_prob = model.predict_proba(features)[0][1]  # Probability of High Risk
+        risk_class = "High Risk" if risk_prob > 0.5 else "Low Risk"
         
         # Calculate Health Score (0-100)
-        # Higher risk = Lower score. 
-        # If risk is 0, score is 100. If risk is 1, score is 0.
         health_score = int((1 - risk_prob) * 100)
         
         # LIME Explanation
-        # We need a training set summary for LIME. 
-        # In a real app, we'd persist the explainer. For this demo, we'll create a simple one.
-        # We'll use a small synthetic background for the explainer initialization (fast & simple)
         explainer = lime.lime_tabular.LimeTabularExplainer(
-            training_data=np.array([[50, 100, 120, 25, 1], [30, 90, 110, 22, 2], [70, 150, 160, 30, 0]]), # Dummy background
-            feature_names=model_columns,
+            training_data=np.array([
+                [50, 100, 120, 25, 1], 
+                [30, 90, 110, 22, 2], 
+                [70, 150, 160, 30, 0],
+                [40, 110, 130, 28, 1],
+                [60, 140, 150, 35, 0]
+            ]),
+            feature_names=FEATURE_NAMES,
             class_names=['Low Risk', 'High Risk'],
             mode='classification'
         )
         
         exp = explainer.explain_instance(
-            data_row=query_df.iloc[0], 
+            data_row=features[0], 
             predict_fn=model.predict_proba,
             num_features=3
         )
         
-        # Get top factors
         explanation_list = exp.as_list()
         
         return render_template('index.html', 
@@ -116,10 +119,14 @@ def predict():
                                probability=f"{risk_prob*100:.1f}%",
                                score=health_score,
                                explanation=explanation_list,
-                               scroll='results') # Anchor to scroll to
+                               scroll='results')
                                
     except Exception as e:
-        return render_template('index.html', error=str(e))
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        print(f"Prediction error: {error_msg}")
+        print(traceback.format_exc())
+        return render_template('index.html', error=error_msg)
 
 if __name__ == '__main__':
     app.run(debug=True)
+
