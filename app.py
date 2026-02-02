@@ -4,12 +4,16 @@ import numpy as np
 import pandas as pd
 import lime
 import lime.lime_tabular
+import os
 
 app = Flask(__name__)
 
-# Load Model and Columns
-model = joblib.load('model.pkl')
-model_columns = joblib.load('model_columns.pkl')
+# Get the directory where app.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Load Model and Columns using absolute paths
+model = joblib.load(os.path.join(BASE_DIR, 'model.pkl'))
+model_columns = joblib.load(os.path.join(BASE_DIR, 'model_columns.pkl'))
 
 @app.route('/')
 def home():

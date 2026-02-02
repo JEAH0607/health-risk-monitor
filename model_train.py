@@ -4,6 +4,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import joblib
+import os
+
+# Get the directory where this script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Synthetic Data Generation
 def generate_data(n_samples=1000):
@@ -62,8 +66,9 @@ if __name__ == "__main__":
     acc = accuracy_score(y_test, preds)
     print(f"Model Accuracy: {acc:.2f}")
     
-    # 5. Save Model
-    joblib.dump(model, 'model.pkl')
-    # Save column names to ensure input order matches during inference
-    joblib.dump(X.columns.tolist(), 'model_columns.pkl')
-    print("Model saved to 'model.pkl'")
+    # 5. Save Model using absolute paths
+    model_path = os.path.join(BASE_DIR, 'model.pkl')
+    columns_path = os.path.join(BASE_DIR, 'model_columns.pkl')
+    joblib.dump(model, model_path)
+    joblib.dump(X.columns.tolist(), columns_path)
+    print(f"Model saved to '{model_path}'")
