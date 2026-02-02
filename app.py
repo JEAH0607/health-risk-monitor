@@ -5,15 +5,60 @@ import pandas as pd
 import lime
 import lime.lime_tabular
 import os
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 
 app = Flask(__name__)
 
 # Get the directory where app.py is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, 'model.pkl')
+COLUMNS_PATH = os.path.join(BASE_DIR, 'model_columns.pkl')
 
-# Load Model and Columns using absolute paths
-model = joblib.load(os.path.join(BASE_DIR, 'model.pkl'))
-model_columns = joblib.load(os.path.join(BASE_DIR, 'model_columns.pkl'))
+def generate_and_train_model():
+    """Generate synthetic data and train model if not exists"""
+    print("Training model...")
+    np.random.seed(42)
+    n_samples = 1000
+    
+    age = np.random.randint(20, 80, n_samples)
+    glucose = np.random.normal(100, 20, n_samples)
+    systolic_bp = np.random.normal(120, 15, n_samples)
+    bmi = np.random.normal(25, 5, n_samples)
+    activity = np.random.randint(0, 3, n_samples)
+    
+    risk_score = (
+        (age / 80) * 0.3 + 
+        (glucose / 200) * 0.4 + 
+        (systolic_bp / 180) * 0.4 + 
+        (bmi / 40) * 0.3 - 
+        (activity * 0.1)
+    )
+    target = (risk_score > 0.65).astype(int)
+    
+    df = pd.DataFrame({
+        'Age': age, 'Glucose': glucose, 'SystolicBP': systolic_bp,
+        'BMI': bmi, 'ActivityLevel': activity, 'Risk': target
+    })
+    
+    X = df.drop('Risk', axis=1)
+    y = df['Risk']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    
+    joblib.dump(model, MODEL_PATH)
+    joblib.dump(X.columns.tolist(), COLUMNS_PATH)
+    print(f"Model saved to {MODEL_PATH}")
+    return model, X.columns.tolist()
+
+# Load or train model
+if os.path.exists(MODEL_PATH) and os.path.exists(COLUMNS_PATH):
+    model = joblib.load(MODEL_PATH)
+    model_columns = joblib.load(COLUMNS_PATH)
+else:
+    model, model_columns = generate_and_train_model()
 
 @app.route('/')
 def home():
