@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -18,7 +20,7 @@
             <!-- Input Section -->
             <section class="card input-section">
                 <h2>Patient Data</h2>
-                <form action="/predict" method="POST">
+                <form action="{{ url_for('predict') }}" method="POST">
                     <div class="form-group">
                         <label>Age (years)</label>
                         <input type="number" name="age" required placeholder="e.g. 45" min="1" max="120">
@@ -51,14 +53,15 @@
             {% if prediction %}
             <section id="results" class="card result-section">
                 <h2>Analysis Report</h2>
-                
+
                 <div class="score-card">
                     <div class="score-circle" style="--score: {{ score }}">
                         <span class="score-value">{{ score }}</span>
                         <span class="score-label">Health Score</span>
                     </div>
                     <div class="risk-info">
-                        <h3>Risk Level: <span class="{{ 'text-danger' if 'High' in prediction else 'text-success' }}">{{ prediction }}</span></h3>
+                        <h3>Risk Level: <span class="{{ 'text-danger' if 'High' in prediction else 'text-success' }}">{{
+                                prediction }}</span></h3>
                         <p>Probability: {{ probability }}</p>
                     </div>
                 </div>
@@ -71,15 +74,14 @@
                         <li>
                             <span class="factor-name">{{ factor[0] }}</span>
                             <span class="factor-impact {{ 'positive' if factor[1] < 0 else 'negative' }}">
-                                {{ "Beneficial" if factor[1] < 0 else "Risk Factor" }}
-                            </span>
+                                {{ "Beneficial" if factor[1] < 0 else "Risk Factor" }} </span>
                         </li>
                         {% endfor %}
                     </ul>
                 </div>
             </section>
             {% endif %}
-            
+
             {% if error %}
             <div class="error-box">
                 <p>Error: {{ error }}</p>
@@ -88,4 +90,5 @@
         </main>
     </div>
 </body>
+
 </html>
